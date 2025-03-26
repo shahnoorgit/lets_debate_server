@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,4 +5,191 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum CategoryEnum {
+  POLITICS_AND_GOVERNANCE
+  ECONOMY_AND_DEVELOPMENT
+  LAW_AND_JUSTICE
+  EDUCATION
+  ENVIRONMENT_AND_SUSTAINABILITY
+  SOCIAL_ISSUES
+  HEALTH_AND_WELLNESS
+  SCIENCE_AND_TECHNOLOGY
+  ENTERTAINMENT_AND_MEDIA
+  SPORTS_AND_LEISURE
+}
+
+enum InterestEnum {
+  ELECTIONS
+  POLITICAL_PARTIES
+  GOVERNMENT_POLICIES
+  CORRUPTION
+  INTERNATIONAL_RELATIONS
+  JOBS_AND_EMPLOYMENT
+  ECONOMIC_POLICIES
+  INCOME_INEQUALITY
+  TRADE_AND_COMMERCE
+  TAXATION
+  CRIME_AND_PUNISHMENT
+  LEGAL_REFORMS
+  JUSTICE_SYSTEM
+  POLICING
+  CYBERCRIME
+  SCHOOL_REFORMS
+  HIGHER_EDUCATION
+  ONLINE_LEARNING
+  EDUCATION_POLICIES
+  STUDENT_WELFARE
+  CLIMATE_CHANGE
+  POLLUTION
+  RENEWABLE_ENERGY
+  WILDLIFE_CONSERVATION
+  WASTE_MANAGEMENT
+  CASTE_SYSTEM
+  GENDER_EQUALITY
+  MINORITY_RIGHTS
+  POVERTY
+  HUMAN_RIGHTS
+  LGBTQ_PLUS_RIGHTS
+  PUBLIC_HEALTH
+  MENTAL_HEALTH
+  HEALTHCARE_ACCESS
+  NUTRITION
+  DISEASE_PREVENTION
+  MEDICAL_ETHICS
+  ARTIFICIAL_INTELLIGENCE
+  SPACE_EXPLORATION
+  MEDICAL_SCIENCE
+  ROBOTICS
+  INFORMATION_TECHNOLOGY
+  ENVIRONMENTAL_TECH
+  HOLLYWOOD
+  BOLLYWOOD
+  TV_SHOWS
+  MUSIC
+  GAMING
+  SOCIAL_MEDIA
+  CENSORSHIP
+  CRICKET
+  FOOTBALL
+  HOCKEY
+  TENNIS
+  BASKETBALL
+  MOTORSPORTS
+}
+
+enum NotificationType {
+  DEBATE_INVITE
+  DEBATE_COMMENT
+  UPVOTE
+  MENTION
+  SYSTEM_UPDATE
+}
+
+enum BadgeType {
+  DEBATE_STARTER
+  FREQUENT_PARTICIPANT
+  TOP_CONTRIBUTOR
+  CONSENSUS_BUILDER
+}
+
+
+model User {
+  id              Int                @id @default(autoincrement())
+  name            String
+  phoneNumber     String             @unique
+  email           String             @unique
+  clerkId         String             @unique
+  followers       String[]           @default([])
+  following       String[]           @default([])
+  votes           Int                @default(0)
+  about           String?
+  image           String?
+  fcmtoken        String?
+  created_debates Debate_room[]      @relation("DebateCreator")
+  debates_joined  DebateParticipant[]
+  categories      Category[]
+  blocked_intrests InterestEnum[]
+  reputationScore Float    @default(0)
+  lastActive     DateTime?
+  notifications  Notification[]
+  badges         UserBadge[]
+  createdAt       DateTime           @default(now())
+}
+
+model Notification {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  user           User      @relation(fields: [userId], references: [id])
+  type           NotificationType
+  content        String
+  isRead         Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+}
+
+model UserBadge {
+  id             Int       @id @default(autoincrement())
+  userId         Int
+  user           User      @relation(fields: [userId], references: [id])
+  badgeType      BadgeType
+  earnedAt       DateTime  @default(now())
+}
+
+model Category {
+  id        Int             @id @default(autoincrement())
+  name      CategoryEnum
+  weight    Int             @default(0)
+  userId    Int
+  user      User            @relation(fields: [userId], references: [id])
+  interests Interest[]
+}
+
+model Interest {
+  id         Int           @id @default(autoincrement())
+  name       InterestEnum
+  weight     Int           @default(0)
+  keywords   String?
+  categoryId Int
+  category   Category      @relation(fields: [categoryId], references: [id])
+}
+
+model Debate_room {
+  id           Int                  @id @default(autoincrement())
+  title        String
+  description  String
+  createdAt    DateTime             @default(now())
+  duration     Int
+  active       Boolean              @default(true)
+  creator_id   Int
+  creator      User                 @relation("DebateCreator", fields: [creator_id], references: [id])
+  participants DebateParticipant[]
+  categories   Debate_room_Category[]
+  sub_categories InterestEnum[]
+  keywords     String[]
+  upvotes      Int                  @default(0)
+  shares       Int                  @default(0)
+  deletedAt   DateTime?
+}
+
+// New model to create a many-to-many relationship between Debate_room and Category
+model Debate_room_Category {
+  debate_room   Debate_room @relation(fields: [debate_roomId], references: [id])
+  debate_roomId Int
+  category      CategoryEnum
+  
+  @@id([debate_roomId, category])
+}
+
+model DebateParticipant {
+  debateRoom   Debate_room  @relation(fields: [debateRoomId], references: [id])
+  debateRoomId Int
+  user         User         @relation(fields: [userId], references: [id])
+  userId       Int
+  opinion      String?
+  agreed       Boolean?
+  createdAt    DateTime     @default(now())
+  upvotes      Int          @default(0)
+  
+  @@id([debateRoomId, userId])
 }
