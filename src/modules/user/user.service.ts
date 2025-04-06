@@ -1,14 +1,13 @@
 import {
   ConflictException,
-  HttpException,
-  HttpStatus,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto } from './dto/user.dto';
 import { Prisma, CategoryEnum, InterestEnum } from '@prisma/client';
+import { UpdateUserPreferencesDto } from './dto/user-preference.dto';
 
 @Injectable()
 export class UserService {
@@ -17,14 +16,14 @@ export class UserService {
   async findById(id: string) {
     try {
       console.log('Finding user with ID:', id);
-    const user = await this.prisma.user.findUnique({
-      where: { clerkId: id }
-    });
-    console.log('User:', user);
+      const user = await this.prisma.user.findUnique({
+        where: { clerkId: id },
+      });
+      console.log('User:', user);
 
-    if (!user) {
-      return null;
-    }
+      if (!user) {
+        return null;
+      }
 
       return user;
     } catch (error) {
@@ -38,12 +37,14 @@ export class UserService {
       const existingUser = await this.prisma.user.findUnique({
         where: { username },
       });
-      
+
       // Return true if username is available (no user found)
       return !existingUser;
     } catch (error) {
       console.error('Error checking username availability:', error);
-      throw new InternalServerErrorException('Error checking username availability');
+      throw new InternalServerErrorException(
+        'Error checking username availability',
+      );
     }
   }
 
@@ -58,7 +59,10 @@ export class UserService {
         throw new ConflictException('User already exists');
       }
 
-      console.log('Creating user with categories:', JSON.stringify(userDto.categories));
+      console.log(
+        'Creating user with categories:',
+        JSON.stringify(userDto.categories),
+      );
 
       // Create a new user with transaction to handle categories and interests
       return await this.prisma.$transaction(async (prisma) => {
@@ -71,15 +75,20 @@ export class UserService {
             username: userDto.username,
             about: userDto.about,
             image: userDto.image,
-            fcmtoken: userDto.fcmtoken,
+            expoTokens: [userDto.expoTokens!],
           },
         });
 
         // Process categories and interests if provided
         if (userDto.categories && Object.keys(userDto.categories).length > 0) {
-          for (const [categoryName, interests] of Object.entries(userDto.categories)) {
-            console.log(`Creating category ${categoryName} with interests:`, interests);
-            
+          for (const [categoryName, interests] of Object.entries(
+            userDto.categories,
+          )) {
+            console.log(
+              `Creating category ${categoryName} with interests:`,
+              interests,
+            );
+
             // Create the category
             const category = await prisma.category.create({
               data: {
@@ -92,7 +101,9 @@ export class UserService {
             // Create interests for this category if any
             if (interests && interests.length > 0) {
               for (const interestName of interests) {
-                console.log(`Adding interest ${interestName} to category ${categoryName}`);
+                console.log(
+                  `Adding interest ${interestName} to category ${categoryName}`,
+                );
                 await prisma.interest.create({
                   data: {
                     name: interestName as InterestEnum,
@@ -139,7 +150,10 @@ export class UserService {
     }
   }
 
-  async updateUserCategories(userId: string, categories: Record<CategoryEnum, InterestEnum[]>) {
+  async updateUserCategories(
+    userId: string,
+    categories: Record<CategoryEnum, InterestEnum[]>,
+  ) {
     try {
       const user = await this.prisma.user.findUnique({
         where: { clerkId: userId },
@@ -192,6 +206,71 @@ export class UserService {
       throw new InternalServerErrorException(
         'Something went wrong while updating user categories.',
       );
+    }
+  }
+
+  async updateUserPreferences(preferences: UpdateUserPreferencesDto) {
+    const userId = '23a1a98e-e712-490b-8b6e-d8d16d50289f';
+    const { name, type, id } = preferences;
+
+    try {
+      // Retrieve the user with related categories and interests
+      const user = await this.prisma.user.findUnique({
+        where: { clerkId: userId },
+        include: {
+          categories: {
+            include: {
+              interests: true,
+            },
+          },
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      if (type === 'interest') {
+        // Find the unique interest by name across all categories for this user.
+        const interest = await this.prisma.interest.findUnique({
+          where: { id: id },
+        });
+
+        if (interest) {
+          // Update the interest's weight.
+          await this.prisma.interest.update({
+            where: { id: interest.id },
+            data: { weight: { increment: 1 } },
+          });
+
+          // Update the parent category's weight.
+          await this.prisma.category.update({
+            where: { id: interest.categoryId },
+            data: { weight: { increment: 1 } },
+          });
+        } else {
+          throw new NotFoundException(`Interest with name ${name} not found`);
+        }
+      } else if (type === 'category') {
+        // Find the matching category among the user's categories using a case‑insensitive match.
+        const matchedCategory = user.categories.find((category) =>
+          category.name.toLowerCase().includes(name.toLowerCase()),
+        );
+
+        if (matchedCategory) {
+          await this.prisma.category.update({
+            where: { id: matchedCategory.id },
+            data: { weight: { increment: 1 } },
+          });
+        } else {
+          throw new NotFoundException(
+            `Category matching name ${name} not found`,
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error updating user preferences:', error);
+      throw error;
     }
   }
 }

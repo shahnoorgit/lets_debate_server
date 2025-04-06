@@ -1,4 +1,10 @@
-import { IsString, IsEmail, IsOptional, IsObject, ValidateNested } from 'class-validator';
+import {
+  IsString,
+  IsEmail,
+  IsOptional,
+  IsObject,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { CategoryEnum, InterestEnum } from '@prisma/client';
 
@@ -25,7 +31,7 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
-  fcmtoken?: string;
+  expoTokens?: string;
 
   @IsOptional()
   @IsObject()

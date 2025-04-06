@@ -157,3 +157,4 @@ export const HETEROGENEOUS_CATEGORIES = [
   CategoryEnum.ENTERTAINMENT_AND_MEDIA,
   CategoryEnum.SPORTS_AND_LEISURE,
 ];
+

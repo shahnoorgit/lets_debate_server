@@ -1,10 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
-import { LoggerMiddleware } from './middleware/logger.middleware';
+import { LoggerMiddleware } from './comman/middleware/logger.middleware';
 import { json, urlencoded } from 'express';
-import { ResponseInterceptor } from 'comman/interceptors/response-interceptor';
-import { HttpErrorFilter } from 'comman/filters/httpException.filter';
+import { ResponseInterceptor } from 'src/comman/interceptors/response-interceptor';
+import { HttpErrorFilter } from 'src/comman/filters/httpException.filter';
 import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {

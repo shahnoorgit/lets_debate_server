@@ -1,19 +1,30 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PrismaModule } from './prisma/prisma.module';
-import { UserModule } from './user/user.module';
+import { UserModule } from './modules/user/user.module';
+import { APP_GUARD } from '@nestjs/core';
+import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
+import { Reflector } from '@nestjs/core';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
-      isGlobal: true, // makes the config available globally
+      isGlobal: true,
     }),
     PrismaModule,
     UserModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useFactory: (reflector: Reflector, configService: ConfigService) =>
+        new JwtAuthGuard(reflector, configService),
+      inject: [Reflector, ConfigService],
+    },
+  ],
 })
 export class AppModule {}
