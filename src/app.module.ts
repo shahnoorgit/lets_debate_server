@@ -7,6 +7,7 @@ import { UserModule } from './modules/user/user.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { Reflector } from '@nestjs/core';
+import { DebateModule } from './modules/debate/debate.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { Reflector } from '@nestjs/core';
     }),
     PrismaModule,
     UserModule,
+    DebateModule,
   ],
   controllers: [AppController],
   providers: [
