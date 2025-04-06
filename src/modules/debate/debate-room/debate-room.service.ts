@@ -7,7 +7,7 @@ import { CategoryEnum } from 'src/enum/user.enum';
 export class DebateRoomService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(createDebateRoomDto: AIEnrichedDto) {
+  async create(createDebateRoomDto: AIEnrichedDto, clerk_id: string) {
     const {
       title,
       description,
@@ -18,13 +18,17 @@ export class DebateRoomService {
       categories,
     } = createDebateRoomDto;
 
+    const user = await this.prisma.user.findUnique({
+      where: { clerkId: clerk_id },
+    });
+
     const debateRoom = await this.prisma.debate_room.create({
       data: {
         title,
         description,
         duration,
         image,
-        creator_id: 'bc0a1a3c-a95e-46fe-a05b-b2ce1750a8dd',
+        creator_id: user?.id!,
         keywords,
         sub_categories,
       },

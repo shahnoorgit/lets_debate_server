@@ -5,6 +5,7 @@ import { AiService } from './ai/debate-room-ai.service';
 import { AIEnrichedDto } from './dto/aiEnrichedDto.dto';
 import { plainToInstance } from 'class-transformer';
 import { Public } from 'src/comman/decorators/public.decorator';
+import { User } from 'src/comman/decorators/req-user.decorator';
 
 @Controller('debate-room')
 export class DebateRoomController {
@@ -15,10 +16,13 @@ export class DebateRoomController {
 
   @Post()
   @Public()
-  async createDebateRoom(@Body() createDebateRoomDto: CreateDebateRoomDto) {
+  async createDebateRoom(
+    @User() user: any,
+    @Body() createDebateRoomDto: CreateDebateRoomDto,
+  ) {
     const enrichedData =
       await this.aiService.enrichDebateRoom(createDebateRoomDto);
     const enriched = plainToInstance(AIEnrichedDto, enrichedData);
-    return this.debateRoomService.create(enriched);
+    return this.debateRoomService.create(enriched, user.clerk_id);
   }
 }
