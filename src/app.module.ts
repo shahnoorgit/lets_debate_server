@@ -8,6 +8,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './modules/auth/jwt-auth.guard';
 import { Reflector } from '@nestjs/core';
 import { DebateModule } from './modules/debate/debate.module';
+import { OpinionJobModule } from './jobs/opinion/opinion.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { DebateModule } from './modules/debate/debate.module';
     }),
     PrismaModule,
     UserModule,
+    OpinionJobModule,
     DebateModule,
   ],
   controllers: [AppController],

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put } from '@nestjs/common';
 import { DebateRoomService } from './debate-room.service';
 import { CreateDebateRoomDto } from './dto/create-debate-room.dto';
 import { AiService } from './ai/debate-room-ai.service';
@@ -15,7 +15,6 @@ export class DebateRoomController {
   ) {}
 
   @Post()
-  @Public()
   async createDebateRoom(
     @User() user: any,
     @Body() createDebateRoomDto: CreateDebateRoomDto,

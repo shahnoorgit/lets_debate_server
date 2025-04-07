@@ -138,6 +138,9 @@ model DebateParticipant {
   upvotes      Int         @default(0)
   debateRoom   Debate_room @relation(fields: [debateRoomId], references: [id])
   user         User        @relation(fields: [userId], references: [id])
+  aiScore      Int         @default(0)
+  aiFlagged    Boolean     @default(false)
+  is_aiFeedback Boolean     @default(false)
 
   @@id([debateRoomId, userId])
 }
