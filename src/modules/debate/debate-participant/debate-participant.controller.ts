@@ -32,8 +32,10 @@ export class DebateParticipantController {
   }
 
   @Put('opinion')
-  @Public()
-  addOpinion(@Body() AddOpinionDto: AddOpinionDto) {
-    return this.debateParticipantService.addOpinion(AddOpinionDto);
+  addOpinion(@Body() AddOpinionDto: AddOpinionDto, @User() user: any) {
+    return this.debateParticipantService.addOpinion(
+      AddOpinionDto,
+      user.clerk_id,
+    );
   }
 }

@@ -165,16 +165,25 @@ export class DebateParticipantService {
 
   async addOpinion(
     AddOpinionDto: AddOpinionDto,
-    user_id: string,
+    clerk_id: string,
   ): Promise<DebateParticipant> {
     try {
       const { roomId, isAgree, opinion } = AddOpinionDto;
+
+      const user = await this.prisma.user.findUnique({
+        where: { clerkId: clerk_id },
+        select: { id: true },
+      });
+
+      if (!user) {
+        throw new InternalServerErrorException('User not found');
+      }
 
       const updatedParticipant = await this.prisma.debateParticipant.update({
         where: {
           debateRoomId_userId: {
             debateRoomId: roomId,
-            userId: user_id,
+            userId: user?.id!,
           },
         },
         data: {
@@ -186,10 +195,10 @@ export class DebateParticipantService {
       // Queue the job to score the opinion asynchronously
       const job = this.opinionJob.addOpinionJob({
         debateRoomId: roomId,
-        userId: user_id,
+        userId: user?.id!,
         text: opinion,
       });
-      this.logger.log(`Opinion job added for user ${user_id} in room ${job}`);
+      this.logger.log(`Opinion job added for user ${clerk_id} in room ${job}`);
       return updatedParticipant;
     } catch (error) {
       this.logger.error(
