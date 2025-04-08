@@ -18,8 +18,8 @@ model User {
   votes            Int                 @default(0)
   about            String?
   image            String?
-  expoTokens       String[]           @default([])
-  blocked_intrests InterestEnum[]
+  expoTokens       String[]            @default([])
+  blocked_intrests InterestEnum[]      @default([])
   reputationScore  Float               @default(0)
   lastActive       DateTime?
   createdAt        DateTime            @default(now())
@@ -28,19 +28,18 @@ model User {
   created_debates  Debate_room[]       @relation("DebateCreator")
   notifications    Notification[]
   badges           UserBadge[]
-  // New messaging related fields
   sentMessages     Message[]           @relation("MessageSender")
   receivedMessages Message[]           @relation("MessageReceiver")
   conversations    UserConversation[]
 }
 
 model Conversation {
-  id           String             @id @default(uuid())
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
-  lastMessageAt DateTime          @default(now())
-  messages     Message[]
-  participants UserConversation[]
+  id            String             @id @default(uuid())
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  lastMessageAt DateTime           @default(now())
+  messages      Message[]
+  participants  UserConversation[]
 }
 
 model UserConversation {
@@ -111,36 +110,46 @@ model Debate_room {
   duration       Int
   active         Boolean                @default(true)
   creator_id     String
-  sub_categories InterestEnum[]
   keywords       String[]
   upvotes        Int                    @default(0)
   shares         Int                    @default(0)
   deletedAt      DateTime?
-  participants   DebateParticipant[]
   creator        User                   @relation("DebateCreator", fields: [creator_id], references: [id])
+  participants   DebateParticipant[]
   categories     Debate_room_Category[]
 }
 
 model Debate_room_Category {
+  id            String                  @id @default(uuid())
   debate_roomId String
   category      CategoryEnum
-  debate_room   Debate_room  @relation(fields: [debate_roomId], references: [id])
+  debate_room   Debate_room             @relation(fields: [debate_roomId], references: [id], onDelete: Cascade)
+  sub_categories Debate_room_SubCategory[]
 
-  @@id([debate_roomId, category])
+  @@unique([debate_roomId, category])
+}
+
+model Debate_room_SubCategory {
+  id                     String               @id @default(uuid())
+  debate_room_categoryId String
+  subCategory            InterestEnum
+  category               Debate_room_Category @relation(fields: [debate_room_categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([debate_room_categoryId, subCategory])
 }
 
 model DebateParticipant {
-  debateRoomId String
-  userId       String
-  opinion      String?
-  agreed       Boolean?
-  createdAt    DateTime    @default(now())
-  upvotes      Int         @default(0)
-  debateRoom   Debate_room @relation(fields: [debateRoomId], references: [id])
-  user         User        @relation(fields: [userId], references: [id])
-  aiScore      Int         @default(0)
-  aiFlagged    Boolean     @default(false)
+  debateRoomId  String
+  userId        String
+  opinion       String?
+  agreed        Boolean?
+  createdAt     DateTime    @default(now())
+  upvotes       Int         @default(0)
+  aiScore       Int         @default(0)
+  aiFlagged     Boolean     @default(false)
   is_aiFeedback Boolean     @default(false)
+  debateRoom    Debate_room @relation(fields: [debateRoomId], references: [id])
+  user          User        @relation(fields: [userId], references: [id])
 
   @@id([debateRoomId, userId])
 }

@@ -14,38 +14,47 @@ export class DebateRoomService {
       duration,
       image,
       keywords,
-      sub_categories,
-      categories,
+      categorized_interests,
     } = createDebateRoomDto;
 
     const user = await this.prisma.user.findUnique({
       where: { clerkId: clerk_id },
     });
 
+    if (!user) throw new Error('User not found');
+
+    // Create Debate Room
     const debateRoom = await this.prisma.debate_room.create({
       data: {
         title,
         description,
         duration,
         image,
-        creator_id: user?.id!,
+        creator_id: user.id,
         keywords,
-        sub_categories,
       },
     });
 
-    const categoryLinks: {
-      debate_roomId: string;
-      category: CategoryEnum;
-    }[] = categories.map((category) => ({
-      debate_roomId: debateRoom.id,
-      category: category as CategoryEnum,
-    }));
+    // Loop over categorized_interests to add categories and subcategories
+    for (const { category, interests } of categorized_interests) {
+      // Create category entry
+      const categoryEntry = await this.prisma.debate_room_Category.create({
+        data: {
+          debate_roomId: debateRoom.id,
+          category,
+        },
+      });
 
-    await this.prisma.debate_room_Category.createMany({
-      data: categoryLinks,
-      skipDuplicates: true,
-    });
+      if (interests.length) {
+        await this.prisma.debate_room_SubCategory.createMany({
+          data: interests.map((interest) => ({
+            debate_room_categoryId: categoryEntry.id,
+            subCategory: interest,
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
 
     return debateRoom;
   }

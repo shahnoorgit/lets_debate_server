@@ -3,7 +3,7 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import { DebateParticipant } from '@prisma/client';
+import { DebateParticipant, InterestEnum } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AddParticipantDto } from './dto/add-participant.dto';
 import { AddOpinionDto } from './dto/add-opinion.dto';
@@ -19,22 +19,71 @@ export class DebateParticipantService {
 
   async addParticipant(
     data: AddParticipantDto,
-    userId: string,
+    clerk_id: string,
   ): Promise<DebateParticipant> {
     try {
+      const user = await this.prisma.user.findUnique({
+        where: { clerkId: clerk_id },
+      });
       const participant = await this.prisma.debateParticipant.create({
-        data: {
-          debateRoomId: data.roomId,
-          userId: userId,
-        },
+        data: { debateRoomId: data.roomId, userId: user?.id! },
         include: {
-          debateRoom: true,
+          debateRoom: {
+            include: {
+              categories: {
+                include: { sub_categories: true }, // fetch sub_categories linked to each category
+              },
+            },
+          },
         },
       });
+
+      const { debateRoom } = participant;
+
+      for (const roomCat of debateRoom.categories) {
+        let userCategory = await this.prisma.category.findFirst({
+          where: { userId: user?.id, name: roomCat.category },
+        });
+
+        userCategory = userCategory
+          ? await this.prisma.category.update({
+              where: { id: userCategory.id },
+              data: { weight: { increment: 1 } },
+            })
+          : await this.prisma.category.create({
+              data: { userId: user?.id!, name: roomCat.category, weight: 1 },
+            });
+
+        // Now handle each sub-category (interest) under this room category
+        for (const subCat of roomCat.sub_categories) {
+          const interestEnumValue =
+            InterestEnum[subCat.subCategory as keyof typeof InterestEnum];
+
+          const userInterest = await this.prisma.interest.findFirst({
+            where: { name: interestEnumValue, categoryId: userCategory.id },
+          });
+
+          if (userInterest) {
+            await this.prisma.interest.update({
+              where: { id: userInterest.id },
+              data: { weight: { increment: 1 } },
+            });
+          } else {
+            await this.prisma.interest.create({
+              data: {
+                name: interestEnumValue,
+                weight: 1,
+                categoryId: userCategory.id,
+              },
+            });
+          }
+        }
+      }
+
       return participant;
     } catch (error) {
       this.logger.error(
-        `Failed to add participant (User: ${userId}) to room (${data.roomId}): ${error.message}`,
+        `Failed to add participant (User: ${clerk_id}) to room (${data.roomId}): ${error.message}`,
         error.stack,
       );
       throw new InternalServerErrorException(
@@ -114,10 +163,12 @@ export class DebateParticipantService {
     }
   }
 
-  async addOpinion(AddOpinionDto: AddOpinionDto): Promise<DebateParticipant> {
+  async addOpinion(
+    AddOpinionDto: AddOpinionDto,
+    user_id: string,
+  ): Promise<DebateParticipant> {
     try {
       const { roomId, isAgree, opinion } = AddOpinionDto;
-      const user_id = 'bc0a1a3c-a95e-46fe-a05b-b2ce1750a8dd';
 
       const updatedParticipant = await this.prisma.debateParticipant.update({
         where: {
