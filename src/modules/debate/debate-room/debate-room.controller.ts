@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Query } from '@nestjs/common';
 import { DebateRoomService } from './debate-room.service';
 import { CreateDebateRoomDto } from './dto/create-debate-room.dto';
 import { AiService } from './ai/debate-room-ai.service';
@@ -23,5 +23,16 @@ export class DebateRoomController {
       await this.aiService.enrichDebateRoom(createDebateRoomDto);
     const enriched = plainToInstance(AIEnrichedDto, enrichedData);
     return this.debateRoomService.create(enriched, user.clerk_id);
+  }
+
+  @Get('/feed')
+  @Public()
+  async getDebateRoom(
+    //@Query('id') id: string,
+    @Query('page') page: string = '1',
+    @Query('limit') limit: number = 50,
+    @Query('cursor') cursor: string = '',
+  ) {
+    return this.debateRoomService.getPersonalizedFeed(page, limit);
   }
 }
