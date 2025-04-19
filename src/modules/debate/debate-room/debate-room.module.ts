@@ -19,8 +19,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         store: redisStore,
         host: configService.get('REDIS_HOST', 'localhost'),
         port: configService.get('REDIS_PORT', 6379),
-        ttl: 300, // 5 minutes cache TTL
-        max: 1000, // Maximum number of items in cache
+        ttl: 3600,
+        max: 1000,
       }),
     }),
   ],

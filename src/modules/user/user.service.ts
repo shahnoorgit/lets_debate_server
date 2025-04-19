@@ -36,6 +36,9 @@ export class UserService {
     try {
       const existingUser = await this.prisma.user.findUnique({
         where: { username },
+        select: {
+          id: true,
+        },
       });
 
       // Return true if username is available (no user found)

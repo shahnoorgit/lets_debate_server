@@ -26,13 +26,17 @@ export class DebateRoomController {
   }
 
   @Get('/feed')
-  @Public()
   async getDebateRoom(
     //@Query('id') id: string,
     @Query('page') page: string = '1',
     @Query('limit') limit: number = 50,
     @Query('cursor') cursor: string = '',
+    @User() user: any,
   ) {
-    return this.debateRoomService.getPersonalizedFeed(page, limit);
+    return this.debateRoomService.getPersonalizedFeed(
+      user.clerk_id,
+      Number(page),
+      limit,
+    );
   }
 }

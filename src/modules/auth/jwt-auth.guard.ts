@@ -22,7 +22,7 @@ export class JwtAuthGuard implements CanActivate {
       jwksUri: this.configService.get<string>('JWKS_URI')!,
       cache: true,
       cacheMaxEntries: 5,
-      cacheMaxAge: 10 * 60 * 1000, // Cache for 10 minutes
+      cacheMaxAge: 10 * 60 * 1000,
     });
   }
 

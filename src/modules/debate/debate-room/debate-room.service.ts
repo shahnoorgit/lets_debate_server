@@ -179,23 +179,30 @@ export class DebateRoomService {
   }
 
   async getPersonalizedFeed(
-    userId: string = '1aac8959-7b78-44f8-b211-1f6b40c51997',
+    clerk_id: string,
     page: number = 1,
     limit: number = 50,
     cursor?: string,
   ) {
     // Try to get from cache first
-    const cacheKey = `feed:${userId}:${page}:${limit}:${cursor || 'start'}`;
+    const cacheKey = `feed:${clerk_id}:${page}:${limit}:${cursor || 'start'}`;
     const cachedFeed = await this.cacheManager.get<any>(cacheKey);
 
     if (cachedFeed) {
       return cachedFeed;
     }
 
+    const userId = await this.prisma.user.findUnique({
+      where: { clerkId: clerk_id },
+      select: {
+        id: true,
+      },
+    });
+
     try {
       // Find user with preferences
       const user = await this.prisma.user.findUnique({
-        where: { id: '1aac8959-7b78-44f8-b211-1f6b40c51997' },
+        where: { id: userId?.id },
         select: {
           id: true,
           blocked_intrests: true,
@@ -274,6 +281,7 @@ export class DebateRoomService {
               id: boolean;
               username: boolean;
               reputationScore: boolean;
+              image: boolean;
             };
           };
           categories: {
@@ -290,6 +298,7 @@ export class DebateRoomService {
             select: {
               userId: boolean;
               upvotes: boolean;
+              agreed: boolean;
             };
           };
           _count: {
@@ -326,7 +335,7 @@ export class DebateRoomService {
               id: true,
               username: true,
               reputationScore: true,
-              
+              image: true,
             },
           },
           categories: {
@@ -343,6 +352,7 @@ export class DebateRoomService {
             select: {
               userId: true,
               upvotes: true,
+              agreed: true,
             },
           },
           _count: {
@@ -475,10 +485,21 @@ export class DebateRoomService {
         duration: item.debate.duration,
         upvotes: item.debate.upvotes,
         shares: item.debate.shares,
+        participants: item.debate.participants,
         participantCount: item.debate._count.participants,
+        agreedCount: item.debate.participants.reduce((sum, participant) => {
+          return sum + (participant.agreed === true ? 1 : 0);
+        }, 0),
+        disagreedCount: item.debate.participants.reduce((sum, participant) => {
+          return sum + (participant.agreed === false ? 1 : 0);
+        }, 0),
+        vote_count: item.debate.participants.reduce((sum, participant) => {
+          return sum + (participant.agreed ? 1 : 0);
+        }, 0),
         creator: {
           id: item.debate.creator.id,
           username: item.debate.creator.username,
+          image: item.debate.creator.image,
         },
         categories: item.debate.categories.map((c) => c.category),
         subCategories: item.debate.categories.flatMap((c) =>
@@ -507,7 +528,7 @@ export class DebateRoomService {
 
       return response;
     } catch (error) {
-      this.logger.error(`Error generating feed for user ${userId}:`, error);
+      this.logger.error(`Error generating feed for user ${clerk_id}:`, error);
       throw error;
     }
   }
