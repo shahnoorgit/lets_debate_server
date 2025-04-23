@@ -152,6 +152,9 @@ model DebateParticipant {
   user          User        @relation(fields: [userId], references: [id])
 
   @@id([debateRoomId, userId])
+  @@index([debateRoomId,aiScore])
+  @@index([debateRoomId,createdAt])
+  @@index([debateRoomId,upvotes])
 }
 
 enum CategoryEnum {

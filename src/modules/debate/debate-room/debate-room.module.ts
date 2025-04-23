@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { CacheModule } from '@nestjs/cache-manager';
-import * as redisStore from 'cache-manager-ioredis';
+import { redisStore } from 'cache-manager-ioredis-yet';
 
 import { DebateRoomService } from './debate-room.service';
 import { DebateRoomController } from './debate-room.controller';
@@ -15,12 +15,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     CacheModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        store: redisStore,
-        host: configService.get('REDIS_HOST', 'localhost'),
-        port: configService.get('REDIS_PORT', 6379),
-        ttl: 3600,
-        max: 1000,
+      useFactory: async (config: ConfigService) => ({
+        ttl: 1,
+        store: await redisStore({
+          host: config.get<string>('REDIS_HOST', 'localhost'),
+          port: config.get<number>('REDIS_PORT', 6379),
+        }),
       }),
     }),
   ],

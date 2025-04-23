@@ -27,7 +27,6 @@ export class DebateRoomController {
 
   @Get('/feed')
   async getDebateRoom(
-    //@Query('id') id: string,
     @Query('page') page: string = '1',
     @Query('limit') limit: number = 50,
     @Query('cursor') cursor: string = '',
@@ -38,5 +37,10 @@ export class DebateRoomController {
       Number(page),
       limit,
     );
+  }
+
+  @Get('/get-room/:id')
+  async getDebateRoomByIdAndUserId(@User() user: any, @Param('id') id: string) {
+    return this.debateRoomService.getDebateRoomById(user.clerk_id, id);
   }
 }

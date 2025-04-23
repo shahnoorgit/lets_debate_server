@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AIEnrichedDto } from './dto/aiEnrichedDto.dto';
 import { CategoryEnum } from 'src/enum/user.enum';
@@ -524,11 +530,43 @@ export class DebateRoomService {
       };
 
       // Store in cache
-      await this.cacheManager.set(cacheKey, response, 300);
+      await this.cacheManager.set(cacheKey, response, 600000);
 
       return response;
     } catch (error) {
       this.logger.error(`Error generating feed for user ${clerk_id}:`, error);
+      throw error;
+    }
+  }
+
+  async getDebateRoomById(clerk_id: string, debate_id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { clerkId: clerk_id },
+    });
+    if (!user) {
+      return new HttpException('user not found', HttpStatus.NOT_FOUND);
+    }
+    try {
+      const room = await this.prisma.debate_room.findUnique({
+        where: { id: debate_id },
+        include: {
+          creator: {
+            select: {
+              id: true,
+              image: true,
+              username: true,
+            },
+          },
+        },
+      });
+
+      if (!room) {
+        return new HttpException('Room Not Found', HttpStatus.NOT_FOUND);
+      }
+
+      return room;
+    } catch (error) {
+      this.logger.error(`Error getting room ${debate_id}:`, error);
       throw error;
     }
   }

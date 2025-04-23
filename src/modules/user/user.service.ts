@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -8,10 +9,17 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto } from './dto/user.dto';
 import { Prisma, CategoryEnum, InterestEnum } from '@prisma/client';
 import { UpdateUserPreferencesDto } from './dto/user-preference.dto';
+import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 
 @Injectable()
 export class UserService {
-  constructor(private prisma: PrismaService) {}
+  private readonly ALL_USERNAMES_CACHE_KEY = 'usernames:all';
+  private readonly CACHE_TTL_SECONDS = 20000;
+
+  constructor(
+    private prisma: PrismaService,
+    @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+  ) {}
 
   async findById(id: string) {
     try {
@@ -19,7 +27,6 @@ export class UserService {
       const user = await this.prisma.user.findUnique({
         where: { clerkId: id },
       });
-      console.log('User:', user);
 
       if (!user) {
         return null;
@@ -34,15 +41,25 @@ export class UserService {
 
   async isUsernameAvailable(username: string): Promise<boolean> {
     try {
-      const existingUser = await this.prisma.user.findUnique({
-        where: { username },
-        select: {
-          id: true,
-        },
-      });
+      let usernames = (await this.cacheManager.get(
+        this.ALL_USERNAMES_CACHE_KEY,
+      )) as string[] | null;
 
-      // Return true if username is available (no user found)
-      return !existingUser;
+      if (!usernames) {
+        const users = await this.prisma.user.findMany({
+          select: { username: true },
+        });
+
+        usernames = users.map((user) => user.username);
+
+        await this.cacheManager.set(
+          this.ALL_USERNAMES_CACHE_KEY,
+          usernames,
+          this.CACHE_TTL_SECONDS,
+        );
+      }
+
+      return usernames?.includes(username) ?? false;
     } catch (error) {
       console.error('Error checking username availability:', error);
       throw new InternalServerErrorException(

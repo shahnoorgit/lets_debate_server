@@ -1,4 +1,5 @@
 import {
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -8,6 +9,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { AddParticipantDto } from './dto/add-participant.dto';
 import { AddOpinionDto } from './dto/add-opinion.dto';
 import { OpinionJob } from 'src/jobs/opinion/opinion.job';
+import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 
 @Injectable()
 export class DebateParticipantService {
@@ -15,6 +17,7 @@ export class DebateParticipantService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly opinionJob: OpinionJob,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
   async addParticipant(
@@ -118,48 +121,46 @@ export class DebateParticipantService {
   async findAllParticipantsOpinion(
     roomId: string,
     orderBy: 'date' | 'votes' | 'score' = 'score',
-  ): Promise<DebateParticipant[]> {
+    page = 1,
+    pageSize = 20,
+  ) {
+    const key = `debate:${roomId}:opinions:${orderBy}:page:${page}:size:${pageSize}`;
+    this.logger.log(key);
+    const cached = await this.cacheManager.get<DebateParticipant[]>(key);
+    if (cached) {
+      this.logger.log(cached);
+      return cached;
+    }
+    this.logger.log('NOT HIT');
+
+    // 2️⃣ Cache miss -> DB query
+    const prismaOrderBy = {
+      date: { createdAt: 'desc' as const },
+      votes: { upvotes: 'desc' as const },
+      score: { aiScore: 'desc' as const },
+    };
+    const skip = (page - 1) * pageSize;
+
+    let results: DebateParticipant[];
     try {
-      const opinions = await this.prisma.debateParticipant.findMany({
+      results = await this.prisma.debateParticipant.findMany({
         where: {
           debateRoomId: roomId,
-          opinion: {
-            not: null,
-          },
-          agreed: {
-            not: null,
-          },
+          opinion: { not: null },
+          agreed: { not: null },
           aiFlagged: false,
         },
-        include: {
-          user: {
-            select: {
-              username: true,
-              image: true,
-            },
-          },
-        },
+        include: { user: { select: { username: true, image: true } } },
+        orderBy: prismaOrderBy[orderBy],
+        skip,
+        take: pageSize,
       });
+      await this.cacheManager.set(key, results, 30000);
 
-      const sortedOpinions = [...opinions].sort((a, b) => {
-        if (orderBy === 'date') {
-          return (
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-        }
-        if ((orderBy = 'score')) {
-          return (b.aiScore ?? 0) - (a.aiScore ?? 0);
-        } else {
-          return (b.upvotes ?? 0) - (a.upvotes ?? 0);
-        }
-      });
-
-      return sortedOpinions;
-    } catch (error) {
-      console.error(`Error fetching opinions for room ${roomId}:`, error);
-      throw new InternalServerErrorException(
-        'Failed to fetch participant opinions',
-      );
+      return results;
+    } catch (err) {
+      console.error(err);
+      throw new InternalServerErrorException('Failed to fetch opinions');
     }
   }
 
