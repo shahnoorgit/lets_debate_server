@@ -539,13 +539,7 @@ export class DebateRoomService {
     }
   }
 
-  async getDebateRoomById(clerk_id: string, debate_id: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { clerkId: clerk_id },
-    });
-    if (!user) {
-      return new HttpException('user not found', HttpStatus.NOT_FOUND);
-    }
+  async getDebateRoomById(debate_id: string) {
     try {
       const room = await this.prisma.debate_room.findUnique({
         where: { id: debate_id },

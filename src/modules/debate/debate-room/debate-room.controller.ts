@@ -41,6 +41,6 @@ export class DebateRoomController {
 
   @Get('/get-room/:id')
   async getDebateRoomByIdAndUserId(@User() user: any, @Param('id') id: string) {
-    return this.debateRoomService.getDebateRoomById(user.clerk_id, id);
+    return this.debateRoomService.getDebateRoomById(id);
   }
 }
