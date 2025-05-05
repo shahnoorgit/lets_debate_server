@@ -59,7 +59,7 @@ export class UserService {
         );
       }
 
-      return usernames?.includes(username) ?? false;
+      return usernames ? !usernames.includes(username) : true;
     } catch (error) {
       console.error('Error checking username availability:', error);
       throw new InternalServerErrorException(

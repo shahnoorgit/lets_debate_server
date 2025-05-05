@@ -8,29 +8,31 @@ datasource db {
 }
 
 model User {
-  id               String              @id @default(uuid())
-  name             String
-  email            String              @unique
-  clerkId          String              @unique
-  username         String              @unique
-  followers        String[]            @default([])
-  following        String[]            @default([])
-  votes            Int                 @default(0)
-  about            String?
-  image            String?
-  expoTokens       String[]            @default([])
-  blocked_intrests InterestEnum[]      @default([])
-  reputationScore  Float               @default(0)
-  lastActive       DateTime?
-  createdAt        DateTime            @default(now())
-  categories       Category[]
-  debates_joined   DebateParticipant[]
-  created_debates  Debate_room[]       @relation("DebateCreator")
-  notifications    Notification[]
-  badges           UserBadge[]
-  sentMessages     Message[]           @relation("MessageSender")
-  receivedMessages Message[]           @relation("MessageReceiver")
-  conversations    UserConversation[]
+  id                     String                    @id @default(uuid())
+  name                   String
+  email                  String                    @unique
+  clerkId                String                    @unique
+  username               String                    @unique
+  followers              String[]                  @default([])
+  following              String[]                  @default([])
+  votes                  Int                       @default(0)
+  about                  String?
+  image                  String?
+  expoTokens             String[]                  @default([])
+  blocked_intrests       InterestEnum[]            @default([])
+  reputationScore        Float                     @default(0)
+  lastActive             DateTime?
+  createdAt              DateTime                  @default(now())
+  categories             Category[]
+  debates_joined         DebateParticipant[]
+  created_debates        Debate_room[]             @relation("DebateCreator")
+  notifications          Notification[]
+  badges                 UserBadge[]
+  sentMessages           Message[]                 @relation("MessageSender")
+  receivedMessages       Message[]                 @relation("MessageReceiver")
+  conversations          UserConversation[]
+  debate_upvotes         DebateUpvote[]         
+  participant_upvotes    ParticipantUpvote[]
 }
 
 model Conversation {
@@ -117,6 +119,32 @@ model Debate_room {
   creator        User                   @relation("DebateCreator", fields: [creator_id], references: [id])
   participants   DebateParticipant[]
   categories     Debate_room_Category[]
+  upvoted_by     DebateUpvote[]
+}
+
+
+model DebateUpvote {
+  userId        String
+  debateRoomId  String
+  createdAt     DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  debate        Debate_room @relation(fields: [debateRoomId], references: [id], onDelete: Cascade)
+
+  @@id([userId, debateRoomId])
+  @@index([debateRoomId])
+}
+
+// Model to track debate participant upvotes
+model ParticipantUpvote {
+  userId              String
+  debateRoomId        String
+  participantUserId   String
+  createdAt           DateTime          @default(now())
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  participant         DebateParticipant @relation(fields: [debateRoomId, participantUserId], references: [debateRoomId, userId], onDelete: Cascade)
+
+  @@id([userId, debateRoomId, participantUserId])
+  @@index([debateRoomId, participantUserId])
 }
 
 model Debate_room_Category {
@@ -143,13 +171,14 @@ model DebateParticipant {
   userId        String
   opinion       String?
   agreed        Boolean?
-  createdAt     DateTime    @default(now())
-  upvotes       Int         @default(0)
-  aiScore       Int         @default(0)
-  aiFlagged     Boolean     @default(false)
-  is_aiFeedback Boolean     @default(false)
-  debateRoom    Debate_room @relation(fields: [debateRoomId], references: [id])
-  user          User        @relation(fields: [userId], references: [id])
+  createdAt     DateTime             @default(now())
+  upvotes       Int                  @default(0)
+  aiScore       Int                  @default(0)
+  aiFlagged     Boolean              @default(false)
+  is_aiFeedback Boolean              @default(false)
+  debateRoom    Debate_room          @relation(fields: [debateRoomId], references: [id])
+  user          User                 @relation(fields: [userId], references: [id])
+  upvoted_by    ParticipantUpvote[]  // Relation for tracking who upvoted this participant
 
   @@id([debateRoomId, userId])
   @@index([debateRoomId,aiScore])

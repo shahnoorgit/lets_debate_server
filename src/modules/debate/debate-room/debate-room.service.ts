@@ -256,8 +256,6 @@ export class DebateRoomService {
       const cursorCondition = cursor
         ? { cursor: { id: cursor }, skip: 1 } // Skip the cursor item
         : {};
-
-      // Base query options - IMPORTANT: Filter by user's categories at database level
       const queryOptions: {
         cursor?: { id: string };
         skip?: number;
@@ -269,6 +267,11 @@ export class DebateRoomService {
               category: {
                 in: CategoryEnum[];
               };
+            };
+          };
+          participants: {
+            none: {
+              userId: string;
             };
           };
         };
@@ -325,6 +328,12 @@ export class DebateRoomService {
               },
             },
           },
+          // Added filter to exclude debates the user has already joined
+          participants: {
+            none: {
+              userId: user.id,
+            },
+          },
         },
         select: {
           id: true,
@@ -373,8 +382,6 @@ export class DebateRoomService {
 
       // Execute the query
       const debates = await this.prisma.debate_room.findMany(queryOptions);
-
-      // Get total count for pagination metadata
       const totalCount = await this.prisma.debate_room.count({
         where: {
           active: true,
@@ -386,10 +393,15 @@ export class DebateRoomService {
               },
             },
           },
+          // Added same filter to count query
+          // participants: {
+          //   none: {
+          //     userId: user.id,
+          //   },
+          // },
         },
       });
 
-      // Second-stage filtering and scoring
       let scoredDebates = debates
         .filter((debate) => {
           // Filter out debates with blocked interests
@@ -530,7 +542,7 @@ export class DebateRoomService {
       };
 
       // Store in cache
-      await this.cacheManager.set(cacheKey, response, 600000);
+      await this.cacheManager.set(cacheKey, response, 60000);
 
       return response;
     } catch (error) {
@@ -562,6 +574,66 @@ export class DebateRoomService {
     } catch (error) {
       this.logger.error(`Error getting room ${debate_id}:`, error);
       throw error;
+    }
+  }
+
+  async getUserParticipatedDebates(clerk_id: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { clerkId: clerk_id },
+        select: { id: true },
+      });
+
+      if (!user) {
+        throw new HttpException('User Not Found', HttpStatus.NOT_FOUND);
+      }
+
+      const debates = await this.prisma.debateParticipant.findMany({
+        where: { userId: user.id },
+        select: {
+          userId: true,
+          debateRoom: true,
+          debateRoomId: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (!debates || debates.length === 0) {
+        return [];
+      }
+
+      // Get unique debateRoomIds
+      const debateRoomIds = [...new Set(debates.map((d) => d.debateRoomId))];
+
+      // Count participants for each debateRoomId in one go
+      const counts = await this.prisma.debateParticipant.groupBy({
+        by: ['debateRoomId'],
+        where: {
+          debateRoomId: { in: debateRoomIds },
+        },
+        _count: true,
+      });
+
+      const countMap = new Map(counts.map((c) => [c.debateRoomId, c._count]));
+
+      // Attach joinedUsers count to each debate
+      const result = debates.map((debate) => ({
+        ...debate,
+        joinedUsers: countMap.get(debate.debateRoomId) || 0,
+      }));
+
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `Error getting participated debates for user ${clerk_id}:`,
+        error,
+      );
+      throw new HttpException(
+        'Internal Server Error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
     }
   }
 }

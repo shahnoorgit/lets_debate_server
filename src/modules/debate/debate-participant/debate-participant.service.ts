@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { DebateParticipant, InterestEnum } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -124,16 +126,6 @@ export class DebateParticipantService {
     page = 1,
     pageSize = 20,
   ) {
-    const key = `debate:${roomId}:opinions:${orderBy}:page:${page}:size:${pageSize}`;
-    this.logger.log(key);
-    const cached = await this.cacheManager.get<DebateParticipant[]>(key);
-    if (cached) {
-      this.logger.log(cached);
-      return cached;
-    }
-    this.logger.log('NOT HIT');
-
-    // 2️⃣ Cache miss -> DB query
     const prismaOrderBy = {
       date: { createdAt: 'desc' as const },
       votes: { upvotes: 'desc' as const },
@@ -141,23 +133,30 @@ export class DebateParticipantService {
     };
     const skip = (page - 1) * pageSize;
 
-    let results: DebateParticipant[];
     try {
-      results = await this.prisma.debateParticipant.findMany({
+      // Fetch one extra to check for next page
+      const results = await this.prisma.debateParticipant.findMany({
         where: {
           debateRoomId: roomId,
           opinion: { not: null },
           agreed: { not: null },
           aiFlagged: false,
         },
-        include: { user: { select: { username: true, image: true } } },
+        include: {
+          user: { select: { username: true, image: true, clerkId: true } },
+        },
         orderBy: prismaOrderBy[orderBy],
         skip,
-        take: pageSize,
+        take: pageSize + 1, // fetch one more than needed
       });
-      await this.cacheManager.set(key, results, 30000);
 
-      return results;
+      const hasNextPage = results.length > pageSize;
+      const trimmedResults = hasNextPage ? results.slice(0, pageSize) : results;
+
+      return {
+        data: trimmedResults,
+        nextPage: hasNextPage,
+      };
     } catch (err) {
       console.error(err);
       throw new InternalServerErrorException('Failed to fetch opinions');
@@ -207,6 +206,151 @@ export class DebateParticipantService {
         error.stack,
       );
       throw new InternalServerErrorException('Failed to add opinion');
+    }
+  }
+
+  async likeOpinion(
+    opinionUserId: string,
+    debateId: string,
+    currentUserId: string,
+  ) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { clerkId: currentUserId },
+        select: { id: true },
+      });
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      // Prevent users from upvoting their own opinions
+      if (user.id === opinionUserId) {
+        throw new BadRequestException('You cannot upvote your own opinion');
+      }
+
+      // Check if this user has already upvoted this opinion
+      const existingUpvote = await this.prisma.participantUpvote.findUnique({
+        where: {
+          userId_debateRoomId_participantUserId: {
+            userId: user.id,
+            debateRoomId: debateId,
+            participantUserId: opinionUserId,
+          },
+        },
+      });
+
+      if (existingUpvote) {
+        const [, opinion] = await this.prisma.$transaction([
+          this.prisma.participantUpvote.delete({
+            where: {
+              userId_debateRoomId_participantUserId: {
+                userId: user.id,
+                debateRoomId: debateId,
+                participantUserId: opinionUserId,
+              },
+            },
+          }),
+          // Decrement the counter
+          this.prisma.debateParticipant.update({
+            where: {
+              debateRoomId_userId: {
+                debateRoomId: debateId,
+                userId: opinionUserId,
+              },
+            },
+            data: {
+              upvotes: { decrement: 1 },
+            },
+          }),
+        ]);
+
+        return {
+          likes: opinion.upvotes,
+          action: 'unliked',
+        };
+      }
+      // Otherwise, add the upvote
+      else {
+        const [, opinion] = await this.prisma.$transaction([
+          // Create the upvote record
+          this.prisma.participantUpvote.create({
+            data: {
+              userId: user.id,
+              debateRoomId: debateId,
+              participantUserId: opinionUserId,
+            },
+          }),
+          // Increment the counter
+          this.prisma.debateParticipant.update({
+            where: {
+              debateRoomId_userId: {
+                debateRoomId: debateId,
+                userId: opinionUserId,
+              },
+            },
+            data: {
+              upvotes: { increment: 1 },
+            },
+          }),
+        ]);
+
+        return {
+          likes: opinion.upvotes,
+          action: 'liked',
+        };
+      }
+    } catch (error) {
+      // Check if the error is a known type and pass it through
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Failed to like opinion (Opinion User ID: ${opinionUserId}, Debate ID: ${debateId}): ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException('Failed to like opinion');
+    }
+  }
+
+  async getLikedOpinions(clerk_id: string, debate_id: string) {
+    try {
+      const cacheKey = `liked_opinions_${clerk_id}_${debate_id}`;
+      const cachedData = await this.cacheManager.get<string[]>(cacheKey);
+      if (cachedData) {
+        return cachedData;
+      }
+      const user = await this.prisma.user.findUnique({
+        where: { clerkId: clerk_id },
+        select: { id: true },
+      });
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+      const likedOpinions = await this.prisma.participantUpvote.findMany({
+        where: {
+          userId: user.id,
+          debateRoomId: debate_id,
+        },
+        select: {
+          participantUserId: true,
+        },
+      });
+      const likedOpinionIds = likedOpinions.map(
+        (opinion) => opinion.participantUserId,
+      );
+      await this.cacheManager.set(cacheKey, likedOpinionIds, 3600); // Cache for 1 hour
+      return likedOpinionIds;
+    } catch (error) {
+      this.logger.error(
+        `Failed to get liked opinions (User: ${clerk_id}, Debate ID: ${debate_id}): ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException('Failed to get liked opinions');
     }
   }
 }

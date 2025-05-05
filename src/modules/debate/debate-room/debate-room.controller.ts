@@ -43,4 +43,12 @@ export class DebateRoomController {
   async getDebateRoomByIdAndUserId(@User() user: any, @Param('id') id: string) {
     return this.debateRoomService.getDebateRoomById(id);
   }
+
+  @Get('/get-user-participated-rooms')
+  @Public()
+  async getUserParticipatedRooms() {
+    return this.debateRoomService.getUserParticipatedDebates(
+      'user_2wg7a9mouH9qOf4GJee3fvhOCjM',
+    );
+  }
 }
