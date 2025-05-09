@@ -121,6 +121,7 @@ export class DebateParticipantService {
   }
 
   async findAllParticipantsOpinion(
+    clerk_id: string,
     roomId: string,
     orderBy: 'date' | 'votes' | 'score' = 'score',
     page = 1,
@@ -155,6 +156,10 @@ export class DebateParticipantService {
 
       return {
         data: trimmedResults,
+        currentUserOpinion: results.find(
+          (opinion) =>
+        opinion.user.clerkId === clerk_id && opinion.opinion !== null,
+        ) || null,
         nextPage: hasNextPage,
       };
     } catch (err) {

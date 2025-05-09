@@ -36,11 +36,13 @@ export class DebateParticipantController {
   @Get('opinion/:roomid')
   getAllParticipantsOpinion(
     @Param('roomid') roomId: string,
+    @User() user: any,
     @Query('page') page: number,
     @Query('orderBy') orderBy: 'date' | 'votes' | 'score',
   ) {
-    console.log(orderBy, page);
+    console.log(user);
     return this.debateParticipantService.findAllParticipantsOpinion(
+      user.clerk_id,
       roomId,
       orderBy,
       page,
