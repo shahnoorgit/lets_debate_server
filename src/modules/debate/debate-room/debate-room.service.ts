@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AIEnrichedDto } from './dto/aiEnrichedDto.dto';
@@ -145,6 +146,21 @@ export class DebateRoomService {
     const user = await this.prisma.user.findUnique({
       where: { clerkId: clerk_id },
     });
+
+    const notEligible = await this.prisma.debate_room.findFirst({
+      where: {
+        creator_id: user?.id,
+        active: true,
+        deletedAt: null,
+      },
+    });
+
+    if (notEligible) {
+      throw new HttpException(
+        'You already have an active debate room',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
 
     if (!user) throw new Error('User not found');
 
@@ -625,6 +641,36 @@ export class DebateRoomService {
       }));
 
       return result;
+    } catch (error) {
+      this.logger.error(
+        `Error getting participated debates for user ${clerk_id}:`,
+        error,
+      );
+      throw new HttpException(
+        'Internal Server Error',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  async getDebateEligibility(clerk_id: string) {
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { clerkId: clerk_id },
+        include: {
+          created_debates: {
+            where: { active: true },
+            select: { active: true },
+          },
+        },
+      });
+      if (!user) {
+        throw new HttpException('User Not Found', HttpStatus.NOT_FOUND);
+      }
+      if (user.created_debates.length === 0) {
+        return true;
+      }
+      return user.created_debates[0].active ? false : true;
     } catch (error) {
       this.logger.error(
         `Error getting participated debates for user ${clerk_id}:`,
