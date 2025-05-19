@@ -49,6 +49,13 @@ export class DebateRoomController {
     return this.debateRoomService.getUserParticipatedDebates(user.clerk_id);
   }
 
+  @Get('/get-user-created-participated-rooms')
+  async getUserCreatedParticipatedRooms(@User() user: any) {
+    return this.debateRoomService.getUserCreatedParticipatedDebates(
+      user.clerk_id,
+    );
+  }
+
   @Get('/get-user-debate-create-eligible')
   async getUserDebateCreationEligibility(@User() user: any) {
     return this.debateRoomService.getDebateEligibility(user.clerk_id);
