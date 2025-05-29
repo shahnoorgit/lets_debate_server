@@ -608,7 +608,9 @@ export class DebateRoomService {
         where: { userId: user.id },
         select: {
           userId: true,
-          debateRoom: true,
+          debateRoom: {
+            include: { creator: { select: { clerkId: true } } },
+          },
           debateRoomId: true,
         },
         orderBy: {
@@ -683,7 +685,7 @@ export class DebateRoomService {
     }
   }
 
-  async getUserCreatedParticipatedDebates(clerk_id: string) {
+  async getUserCreatedDebates(clerk_id: string) {
     try {
       const user = await this.prisma.user.findUnique({
         where: { clerkId: clerk_id },
@@ -694,47 +696,36 @@ export class DebateRoomService {
         throw new HttpException('User Not Found', HttpStatus.NOT_FOUND);
       }
 
-      const debates = await this.prisma.debateParticipant.findMany({
-        where: { debateRoom: { creator: { clerkId: clerk_id } } },
-        select: {
-          userId: true,
-          debateRoom: true,
-          debateRoomId: true,
-          user: true,
+      // Get debates created by the user
+      const createdDebates = await this.prisma.debate_room.findMany({
+        where: { creator_id: user.id },
+        include: {
+          participants: {
+            select: { userId: true },
+          },
         },
         orderBy: {
           createdAt: 'desc',
         },
       });
 
-      if (!debates || debates.length === 0) {
-        return [];
-      }
-
-      // Get unique debateRoomIds
-      const debateRoomIds = [...new Set(debates.map((d) => d.debateRoomId))];
-
-      // Count participants for each debateRoomId in one go
-      const counts = await this.prisma.debateParticipant.groupBy({
-        by: ['debateRoomId'],
-        where: {
-          debateRoomId: { in: debateRoomIds },
-        },
-        _count: true,
-      });
-
-      const countMap = new Map(counts.map((c) => [c.debateRoomId, c._count]));
-
-      // Attach joinedUsers count to each debate
-      const result = debates.map((debate) => ({
+      const debatesWithJoined = createdDebates.map((debate) => ({
         ...debate,
-        joinedUsers: countMap.get(debate.debateRoomId) || 0,
+        joinedUsers: debate.participants.length,
+        joined: debate.participants.some(
+          (participant) => participant.userId === user.id,
+        ),
       }));
 
-      return result;
+      debatesWithJoined.sort((a, b) => {
+        if (a.joined === b.joined) return 0;
+        return a.joined ? -1 : 1;
+      });
+
+      return debatesWithJoined;
     } catch (error) {
       this.logger.error(
-        `Error getting participated debates for user ${clerk_id}:`,
+        `Error getting created debates for user ${clerk_id}:`,
         error,
       );
       throw new HttpException(

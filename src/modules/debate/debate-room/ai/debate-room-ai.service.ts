@@ -84,7 +84,7 @@ Each interest MUST belong to its respective category based on the mapping provid
       temperature: 0.4,
     };
 
-    const apiKey = this.config.get<string>('DEEPSEEK_API_KEY');
+    const apiKey = process.env.DEEPISEEK_API_KEY;
     Logger.log(`API Key: ${apiKey ? apiKey.slice(0, 6) + '***' : 'MISSING'}`);
 
     if (!apiKey) {

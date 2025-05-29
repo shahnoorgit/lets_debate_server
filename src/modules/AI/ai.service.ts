@@ -89,7 +89,7 @@ Respond with ONLY valid JSON. No extra text or formatting.
       max_tokens: 150, // Ensures concise responses
     };
 
-    const apiKey = this.config.get<string>('DEEPSEEK_API_KEY');
+    const apiKey = process.env.DEEPISEEK_API_KEY;
     if (!apiKey) {
       throw new Error('DeepSeek API key not found in config');
     }

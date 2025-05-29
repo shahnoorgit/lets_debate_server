@@ -15,8 +15,8 @@ import { redisStore } from 'cache-manager-ioredis-yet';
       useFactory: async (config: ConfigService) => ({
         ttl: 1,
         store: await redisStore({
-          host: config.get<string>('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
+          host: process.env.REDIS_HOST,
+          port: process.env.REDIS_PORT,
         }),
       }),
     }),
